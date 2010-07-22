@@ -1,0 +1,637 @@
+                   <html>
+    
+    <head>
+        <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js">
+        </script>
+    </head>
+    
+    <body>
+        <script>
+            var cl = function() {
+                console.log(arguments);
+            };
+            $(function() {
+                var helpers = function() {
+                    var o = {
+                        mode: function(m, states) {
+                            for (var p in states) {
+                                if (states.hasOwnProperty(p)) {
+                                    if (p == m) {
+                                        states[m].fl = 1;
+                                        states[m].fn();
+                                        continue;
+                                    }
+                                    states[p].fl = 0;
+                                }
+                            }
+                        },
+                        getLine: function(text) {
+                            var ln = $("<pre/>").css({
+                                margin: 0,
+                                height: 16
+                            });
+                            if (text === "") {
+                                text = '&nbsp';
+                            }
+                            if (typeof text === "undefined") {
+                                ln.addClass("null");
+                                ln.html('~');
+                            } else {
+                                ln.html(text);
+                            }
+                            return ln;
+                        },
+                        getClearLine: function() {
+                            return $("<pre/>").css({
+                                margin: 0,
+                                clear: 'both'
+                            });
+                        },
+			getNumberLeadingWhitespace : function (line) { //Returns the number of leading whitespace characters found in a line
+				return /^\s*/.exec(line.text())[0].length;
+			},
+                        keycode: {
+                            getKeyCode: function(e) {
+                                var keycode;
+                                if (window.event) {
+                                    keycode = window.event.keyCode;
+                                } else if (e) {
+                                    keycode = e.which;
+                                }
+                                return keycode;
+                            },
+                            getKeyCodeValue: function(keyCode, shiftKey) {
+                                shiftKey = shiftKey || false;
+				if (keyCode >= 65 && keyCode <= 90) { // letter
+					var val = String.fromCharCode(keyCode); 
+					return !shiftKey ? val.toLowerCase() : val;
+				}
+				return shiftKey ? this.modifiedByShift[keyCode] : this.keyCodeMap[keyCode];
+                            },
+                            getValueByEvent: function(e) {
+                                return this.getKeyCodeValue(this.getKeyCode(e), e.shiftKey);
+                            },
+                            keyCodeMap: {
+                                8: "backspace",
+                                9: "	",
+                                13: "return",
+                                16: "shift",
+                                17: "ctrl",
+                                18: "alt",
+                                19: "pausebreak",
+                                20: "capslock",
+                                27: "escape",
+                                32: " ",
+                                33: "pageup",
+                                34: "pagedown",
+                                35: "end",
+                                36: "home",
+                                37: "left",
+                                38: "up",
+                                39: "right",
+                                40: "down",
+                                43: "+",
+                                44: "printscreen",
+                                45: "insert",
+                                46: "delete",
+                                48: "0",
+                                49: "1",
+                                50: "2",
+                                51: "3",
+                                52: "4",
+                                53: "5",
+                                54: "6",
+                                55: "7",
+                                56: "8",
+                                57: "9",
+                                59: ";",
+                                61: "=",
+                                96: "0",
+                                97: "1",
+                                98: "2",
+                                99: "3",
+                                100: "4",
+                                101: "5",
+                                102: "6",
+                                103: "7",
+                                104: "8",
+                                105: "9",
+                                106: "*",
+                                107: "+",
+                                109: "-",
+                                110: ".",
+                                111: "/",
+                                112: "f1",
+                                113: "f2",
+                                114: "f3",
+                                115: "f4",
+                                116: "f5",
+                                117: "f6",
+                                118: "f7",
+                                119: "f8",
+                                120: "f9",
+                                121: "f10",
+                                122: "f11",
+                                123: "f12",
+                                144: "numlock",
+                                145: "scrolllock",
+                                186: ";",
+                                187: "=",
+                                188: ",",
+                                189: "-",
+                                190: ".",
+                                191: "/",
+                                192: "`",
+                                219: "[",
+                                220: "\\",
+                                221: "]",
+                                222: "'"
+                            },
+                            modifiedByShift: {
+                                192: "~",
+                                48: ")",
+                                49: "!",
+                                50: "@",
+                                51: "#",
+                                52: "$",
+                                53: "%",
+                                54: "^",
+                                55: "&",
+                                56: "*",
+                                57: "(",
+                                109: "_",
+                                61: "+",
+                                219: "{",
+                                221: "}",
+                                220: "|",
+                                59: ":",
+                                222: "\"",
+                                188: "<",
+                                189: ">",
+                                191: "?",
+                                96: "insert",
+                                97: "end",
+                                98: "down",
+                                99: "pagedown",
+                                100: "left",
+                                102: "right",
+                                103: "home",
+                                104: "up",
+                                105: "pageup"
+                            }
+                        }
+                    };
+                    return o;
+                } ();
+                $.fn.vim = function(options) {
+                    var opts = $.extend({},
+                    $.fn.vim.defaults, options);
+                    return this.each(function() {
+                        var commands = [
+			    { reg: /^(\d*)(h|left)$/, fn: function(o) { curs.left(parseInt(o.r[1] || 1, 10)); } },
+			    { reg: /^(\d*)(j|down)$/, fn: function(o) { curs.down(parseInt(o.r[1] || 1, 10)); } },
+			    { reg: /^(\d*)(k|up)$/, fn: function(o) { curs.up(parseInt(o.r[1] || 1, 10)); } },
+			    { reg: /^(\d*)(l|right)$/, fn: function(o) { curs.right(parseInt(o.r[1] || 1, 10)); } },
+			    { reg: /^(\d*)G$/, fn: function(o) { 
+					    curs.moveVer(o.r[1],true);
+			    }},
+			    { reg: /^\^$/, fn: function(o) { curs.moveHor(helpers.getNumberLeadingWhitespace(currLine), true); }}, 
+			    { reg: /^\$$/, fn: function(o) { curs.moveHor(getCurrentLineText().length - 1, true); }}, 
+			    { reg: /^i$/, fn: function() {
+                                helpers.mode('insert', states);
+			    } },
+			    { reg: /^a$/, fn: function() {
+                                helpers.mode('insert', states);
+                                curs.right(1);
+			    } },
+			    { reg: /^v$/, fn: function() {
+                                helpers.mode('visual', states);
+			    } },
+			    { reg: /^ZZ$/, fn: turnOff },
+			    { reg: /(escape)|(ctrl\[)/, fn: function () {
+                                currentCombDiv.html('');
+                                currInput.length = 0;
+                                helpers.mode('normal', states); 
+			    }}
+                            ];
+                        var curs = function(opts) {
+                            var w = 8,
+                                h = 17;
+                            var el = $('<div/>').css({
+                                margin: '0px',
+                                padding: '0px',
+                                overflow: 'hidden',
+                                'font-family': 'monospace',
+                                'font-size': '100%',
+                                cursor: 'default',
+                                display: 'inline',
+                                'font-weight': 'normal',
+                                'text-decoration': 'none',
+                                float: 'left'
+                            });
+                            var moveHor = function(n, isAbsolute) { 
+                                el.css('background-color', 'black');
+                                el.css('color', 'white');
+                                n = n || 0;
+                                var ctext = getCurrentLineText();
+                                if (n < 0 && !currColumn) { //Cursor is currently at left-most and user is trying to move to the left
+                                    return false;
+                                }
+                                var tempColumn = isAbsolute ? n : currColumn;
+				//TODO: refactor the below 'if' statements
+				if (!isAbsolute) {
+					if (currColumn >= ctext.length) { //coming from a vertical move, where the cursor was in a postition greater than the current line length
+						tempColumn = ctext.length - 1; //position the cursor at the end of the line
+						if (n) {
+							tempColumn += isAbsolute ? 0 : n;
+							currColumn = tempColumn;
+						}
+						} else {
+						tempColumn += isAbsolute ? 0 : n;
+						currColumn = tempColumn;
+					}
+				}
+				if(tempColumn < 0 || tempColumn >= ctext.length) {
+					tempColumn = (n > 0 ? ctext.length - 1 : 0);
+					currColumn = tempColumn;
+				}
+                                var prevletter = ctext.substr(tempColumn)[0];
+                                if (typeof prevletter === "undefined") {
+                                    currColumn -= n;
+                                    return false;
+                                }
+                                var prevText = ctext.substring(0, tempColumn);
+                                currLine.html(prevText !== "" ? $("<pre/>").css({margin: 0, float: 'left'}).html(ctext.substring(0, tempColumn)) : '');
+                                currLine.append(curs.el);
+				var rightText = ctext.substring(tempColumn + (states.insert.fl ? 0 : 1));
+                                currLine.append(rightText);
+                                currLine.append(helpers.getClearLine());
+                                el.html(states.insert.fl ? '' : prevletter);
+                                return true;
+                            };
+                            var moveVer = function(n, isAbsolute) { 
+				    if (isAbsolute) {
+					    var line = parseInt(n, 10);
+					    var lineNumber = line || getTotalLines();
+					    var currPos = getLineNumber(currLine);
+					    if (lineNumber === currPos) {
+						    return false;
+					    }
+					    moveVer(- (currPos - lineNumber));
+					    return;
+				    }
+				    if (!n) {
+					    return false;
+				    }
+				    var lineSelector = "pre[class!='null']",
+				    elements = n > 0 ? currLine.nextAll(lineSelector) : currLine.prevAll(lineSelector);
+				    n = Math.abs(n);
+				    if (!elements.length) { //cursor is currently at top-most or at bottom-most and can move no further
+					    return false;
+				    }
+				    var nl = elements.eq(n > elements.length ? elements.length - 1 : (n - 1));
+				    currLine.html(currLine.text());
+				    currLine.append(helpers.getClearLine());
+				    currLine = nl;
+				    currLine.append(helpers.getClearLine());
+				    return curs.right();
+                            };
+                            var curs = {
+                                el: el,
+                                right: function(n) {
+                                    moveHor(n);
+                                },
+                                left: function(n) {
+                                    moveHor(-n);
+                                },
+                                down: function(n) {
+                                    moveVer(n);
+                                },
+                                up: function(n) {
+                                    moveVer(-n);
+                                },
+                                modes: {
+                                    line: function() {
+                                        el.css('width', '1px');
+                                    },
+                                    block: function() {
+                                        el.css({
+                                            width: 8,
+                                            height: 16
+                                        });
+                                    },
+                                    underscore: function() {
+                                        el.css({
+                                            width: '8px',
+                                            height: '8px'
+                                        });
+                                    }
+			    },
+			    moveHor : moveHor,
+			    moveVer : moveVer
+                            };
+                            var cursorTurn = function(flag) {
+
+                            };
+                            setInterval(function() {
+                                var state = 0,
+                                    font, back;
+                                return function() {
+                                    if (state) {
+                                        back = "white";
+                                        font = "black";
+                                    } else {
+                                        back = "black";
+                                        font = "white";
+                                    }
+                                    el.css({
+                                        "background-color": back,
+                                        color: font
+                                    });
+                                    state = !state;
+                                };
+                            } (), 400);
+                            curs.modes.block();
+                            return curs;
+                        } ();
+                        var $this = $(this),
+                            footerHeight = 20,
+                            width = $this.outerWidth(),
+                            height = $this.outerHeight(),
+                            vimDiv = $('<div/>').css({
+                            width: $this.outerWidth(),
+                            height: $this.outerHeight() - footerHeight,
+                            'font-family': 'monospace'
+                        }),
+                            counter = $.fn.vim.counter++,
+                            cols = $this.attr("cols"),
+                            rows = $this.attr("rows"),
+                            taWrapper = $("<div/>").css({
+                            width: width,
+                            height: height
+                        }),
+                            logoDiv = $("<div/>").css({
+                            background: 'url(vim.png)',
+                            height: 30,
+                            width: 30,
+                            position: 'relative',
+                            display: 'none',
+                            cursor: 'pointer',
+                            top: -height
+                        });
+                        $this.before(taWrapper);
+                        taWrapper.append($this);
+                        taWrapper.append(logoDiv);
+                        logoDiv.css('left', width - logoDiv.outerWidth() - 2);
+                        taWrapper.hover(function() {
+                            logoDiv.fadeIn();
+                        }, function() {
+                            logoDiv.fadeOut();
+                        });
+                        var footer = $("<div/>").css({
+                            height: footerHeight,
+                            width: width
+                        });
+                        var statusDiv = $("<div/>").css({
+                            width: '100px',
+                            height: footerHeight,
+                            'font-weight': 'bold',
+			    'padding-left': '10px',
+			    float:'left'
+                        });
+			var currentCombDiv = $("<div/>").css({
+                            height: footerHeight,
+                            'font-weight': 'bold',
+			    'padding-left': '10px',
+			    float:'right'
+                        });
+			var numbersDiv = $("<div/>").css({
+                            height: footerHeight,
+                            'font-weight': 'bold',
+			    'padding-left': '10px',
+			    'padding-right': '10px',
+			    float:'right'
+                        });
+                        footer.append(statusDiv);
+			footer.append(numbersDiv);
+			footer.append(currentCombDiv);
+			numbersDiv.html('123,23');
+                        var states = {
+                            normal: {
+                                fl: 1,
+                                fn: function() {
+                                    statusDiv.html('');
+                                }
+                            },
+                            insert: {
+                                fl: 0,
+                                fn: function() {
+                                    statusDiv.html('-- INSERT --');
+				    curs.el.after(curs.el.html()).html('');
+                                    curs.modes.line();
+                                }
+                            },
+                            visual: {
+                                fl: 0,
+                                fn: function() {
+                                    statusDiv.html('-- VISUAL --');
+                                }
+                            },
+                            command: {
+                                fl: 0,
+                                fn: function() {
+
+                                }
+                            }
+                        };
+                        var getCurrentLineText = function() {
+                            return currLine.text();
+                        };
+                        var vimCon = $("<div/>").css({
+                            width: width,
+                            height: height,
+                            'font-family': 'monospace',
+                            border: '1px solid black'
+                        });
+
+			var isStrokeDisplayable = function () {
+				var noDisplayStrokes = ['escape', 'ctrl'];
+				return function (stroke) {
+					for (var i = 0, j = noDisplayStrokes.length; i < j; ++i) {
+						if (stroke === noDisplayStrokes[i]) {
+							return false;
+						}
+					}
+					return true;
+				}
+			}();
+
+                        var currInput = [];
+                        var processInput = function(ch) {
+				var comb = !currInput.length ? ch : (currInput.join('') + ch);
+				var comm;
+				for (var p in commands) {
+					if (!commands.hasOwnProperty(p)) {
+					    continue;
+				    }
+				        var currComm = commands[p];
+					if (currComm.reg.test(comb)) {
+						comm = currComm;
+						break;
+					}
+				}		
+				if (comm) {
+				        currentCombDiv.html('');
+					currInput.length = 0;
+					comm.fn({r : comm.reg.exec(comb)}); 
+					} else {
+					currInput.push(ch);
+					if (isStrokeDisplayable(ch)) {
+						currentCombDiv.html(comb);
+					}
+				}
+                        };
+
+			var isCharacterTypable = function(code) {
+				return (code === 8 || code === 9) || //backspace and tab
+				(code >= 65 && code <= 90) || //letter
+				(code === 32 || code === 43) || // space and +
+				(code >= 48 && code <= 111) ||
+				(code >= 186 && code <= 222);
+			};
+
+			var specialTypableCharacters = {
+				'backspace': function () {
+					var pre= curs.el.prev("pre"),lineBefore,pretext, thisLine,lineBeforeText,newText;
+					if(!pre.length || pre.text() === '') {
+						//cursor is currently at most-left
+						//TODO
+						lineBefore = curs.el.parent("pre").prev("pre");
+						if(!lineBefore.length) { //cursor is at topmost and leftmost and cant delete any further
+							return;
+						}
+						thisLine = currLine;
+						lineBeforeText = lineBefore.text();
+						var lbtLength =lineBeforeText.length;
+						newText = lineBeforeText + thisLine.text();
+						lineBefore.html(newText);
+						curs.up(1);
+						curs.moveHor(lbtLength, true);
+						thisLine.remove();
+						return;
+					};
+					pretext = pre.text();
+					pre.text(pretext.substr(0,pretext.length-1));
+				}
+			};
+			var insertChar = function (ch) {
+				var special = specialTypableCharacters[ch];
+				if (special) {
+				    special();
+				} else {
+				    curs.el.prev("pre").append(ch);
+			        }
+			};
+
+                        var keyDown = function(evnt) {
+			evnt.preventDefault();
+                            var code = helpers.keycode.getKeyCode(evnt);
+                            if (code === 16) { //shift
+                                return;
+			    }
+			    var ch = helpers.keycode.getValueByEvent(evnt);
+			    if(states.insert.fl) {
+				    if (isCharacterTypable(code)) {
+					    insertChar(ch);
+			    }
+		            } else {
+				    processInput(ch);
+			    }
+                        };
+                        vimCon.append(vimDiv);
+                        vimCon.append(footer);
+                        var currLine, currColumn, vimMode = 0;
+                        var turnOn = function() {
+                            if (vimMode) { //Editor is already in VIM mode
+                                return;
+                            }
+                            vimMode = 1;
+                            logoDiv.attr('title', 'Turn off VIM mode');
+                            $().bind('keydown', keyDown);
+                            var startingText = $this.val().split('\n');
+                            $this.after(vimCon);
+                            $this.css("display", "none");
+                            vimDiv.html('');
+                            for (var i = 0; i < startingText.length; ++i) {
+                                var line = helpers.getLine(startingText[i]);
+                                line.append(helpers.getClearLine());
+                                vimDiv.append(line);
+                            };
+                            var nullLines = rows - startingText.length;
+                            for (var i = 0; i < nullLines; ++i) {
+                                vimDiv.append(helpers.getLine());
+                            }
+                            var firstLine = vimDiv.find("pre").eq(0);
+                            curs.el.html(firstLine.text().charAt(0));
+                            firstLine.html(firstLine.html().slice(1));
+                            firstLine.prepend(curs.el);
+                            currLine = firstLine;
+                            currColumn = 0;
+                        };
+                        var turnOff = function() {
+                            logoDiv.attr('title', 'Turn on VIM mode');
+                            if (!vimMode) { //Editor is already in normal mode
+                                return;
+                            }
+                            vimMode = 0;
+                            $().unbind('keydown', keyDown);
+                            var text = [];
+                            vimDiv.children("pre").not(".null").each(function() {
+                                text.push($(this).text());
+                            });
+                            text = text.join("\n");
+                            $this.css({
+                                'display': 'block'
+                            }).val(text);
+                            vimCon.remove();
+                        };
+			var getTotalLines = function () {
+				return vimDiv.children("pre[class!='null']").length;
+			};
+			var getLineNumber = function (line) {
+				return vimDiv.children("pre[class!='null']").index(line) + 1;
+			};
+
+                        logoDiv.click(function() {
+                            if (vimMode) {
+                                turnOff();
+                            } else {
+                                turnOn();
+                            }
+                        });
+                        turnOff();
+                    });
+                };
+
+                $.fn.vim.counter = 0;
+                $.fn.vim.defaults = {};
+                $(".vim2").vim();
+            });
+        </script>
+        <textarea class="vim2" cols="60" rows="20" style="border:1px solid black;">
+        //text with previous whitespace
+int add(int,int);
+
+int main () {
+    printf("Hello Vim");
+    return 0;
+}
+
+int add(int n, int m) {
+    return n + m;
+}
+
+//a comment</textarea>
+    </body>
+
+</html>
